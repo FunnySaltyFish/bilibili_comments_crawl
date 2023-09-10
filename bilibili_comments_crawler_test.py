@@ -1,14 +1,12 @@
 import asyncio
 import json
-from traceback import format_exc, print_exc
+from traceback import print_exc
 from typing import Any, Dict, List, Optional, TypeAlias
-from urllib.parse import urlencode
 
 import httpx
-from async_pool import AsyncPool
 from bilibili_api.credential import Credential
-from bilibili_api.comment import get_comments_lazy, CommentResourceType
-from bilibili_api.utils.network import get_mixin_key, enc_wbi
+
+from async_pool import AsyncPool
 # config 中包含了 BILI_JCT, SESSDATA, BUVID3, DEDE_USER_ID, AT_TIME_VALUE
 from config import *
 
@@ -59,7 +57,6 @@ async def get_one_page(oid: int, pagination_str: str, client: httpx.AsyncClient 
     }
     # pagination_str: {"offset":"{\"type\":1,\"direction\":1,\"session_id\":\"1733963713068881\",\"data\":{}}"}
     url = "https://api.bilibili.com/x/v2/reply/main"
-    # enc_wbi(params, await get_mixin_key())
     # print("-- url: ", url + "?" + urlencode(params))
     text = await get_html(url, params, COMMON_HEADERS, cookies=credential.get_cookies(), client=client)
     obj = json.loads(text)
@@ -72,7 +69,6 @@ async def crawl_one_page_video(oid: int, page: int, pagination_str: str, client:
     """
 
     print("-- 开始爬取视频 {} 的第 {} 页评论".format(oid, page))
-    # obj = await get_comments_lazy(oid, CommentResourceType.VIDEO, pagination_str, credential=credential)
     obj = await get_one_page(oid, pagination_str, client)
 
     if obj["code"] != 0:
