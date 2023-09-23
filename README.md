@@ -48,6 +48,7 @@
 - 一个可用的 B 站账号
 
 2. .env
+
 由于 B 站限制，爬取相关内容需要登录，因此需要配置一下账号的 Cookie。  
 克隆此项目后，在根目录下创建 .env 文件，内容如下：
 ```
@@ -61,6 +62,7 @@ AT_TIME_VALUE='xxx'
 各项值的含义和获取方式请参考 https://nemo2011.github.io/bilibili-api/#/get-credential 。
 
 3. 按需修改参数
+
 项目的主要文件只有一个, `bilibili_comments_crawler.py`，您可以配置的参数有：
 ```python
 # 同时最多运行多少个协程，可调，但不建议改太大，不要给 B 站造成负担
