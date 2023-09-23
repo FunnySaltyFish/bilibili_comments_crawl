@@ -1,18 +1,33 @@
-
-from traceback import format_exc, print_exc
+# -*- coding: utf-8 -*-
+from traceback import print_exc
 import asyncio
 import httpx
 import json
 from typing import List, Dict, Any, TypeAlias, Optional
 from async_pool import AsyncPool
 import os
-from urllib.parse import urlencode
 from bilibili_api.credential import Credential
 from config import *
 
 JSON_TYPE: TypeAlias = Dict[str, Any]
+# 同时最多运行多少个协程，可调，但不建议改太大，不要给 B 站造成负担
+ASYNC_POOL_MAX_SIZE = 16
+# 对话链的最短有效长度，超过此长度的对话才会被保存
+MIN_DIALOG_LENGTH = 5
+# oid 即为视频的 av 号，可以在某个视频的源码中找到（右键-查看源代码-搜索 oid）
+VIDEO_OID = 2
+# 爬取每一页评论（即视频下面）后的休眠时间，单位秒
+SLEEP_TIME_ONE_PAGE = 0.1
+# 爬取每一条评论后的休眠时间，单位秒
+SLEEP_TIME_ONE_REPLY = 0.1
+# 被 B 站限制访问时的休眠时间，单位秒
+SLEEP_TIME_WHEN_LIMITED = 30
+# 被 B 站限制访问时的最高重试次数，超过此次数则放弃
+MAX_RETRY_TIME_WHEN_LIMITED = 3
+# 当某条数据已经爬过时，是否跳过，而不是重新爬取（对于新视频，有可能评论会随时间更新；老视频一般无影响）
+SKIP_EXISTED_DATA = True
 
-#
+# 爬取时的公共请求头
 COMMON_HEADERS = {
     "Origin": "https://www.bilibili.com",
     "Authority": "api.bilibili.com",
@@ -28,7 +43,7 @@ if not (SESSDATA and BILI_JCT and BUVID3 and DEDE_USER_ID and AT_TIME_VALUE):
 credential = Credential(sessdata=SESSDATA, bili_jct=BILI_JCT,
                         buvid3=BUVID3, dedeuserid=DEDE_USER_ID, ac_time_value=AT_TIME_VALUE)
 print("credential: ", credential.get_cookies())
-pool = AsyncPool(maxsize=16)
+pool = AsyncPool(maxsize=ASYNC_POOL_MAX_SIZE)
 
 
 def save_obj(obj: JSON_TYPE, filename: str):
@@ -39,18 +54,25 @@ def save_obj(obj: JSON_TYPE, filename: str):
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
-async def get_html(url: str, params: Dict = None, headers: Dict = None, cookies: Dict = None, timeout: int = 30, client: httpx.AsyncClient = None):
+async def get_html(url: str, params: Dict = None, headers: Dict = None, cookies: Dict = None, timeout: int = 30, client: httpx.AsyncClient = None, retry_time: int = 0):
     m_client = client
     try:
         if client is None:
             m_client = httpx.AsyncClient()
         # print("当前发送请求的 client ID: ", id(m_client))
         r = await m_client.get(url, timeout=timeout, params=params, headers=headers, cookies=cookies)
+        if r.status_code == 412:
+            if retry_time >= MAX_RETRY_TIME_WHEN_LIMITED:
+                print("请求频率过高，引发 B 站限流了，已达到最大重试次数，放弃重试，尝试结束应用")
+                os._exit(1)
+            print(f"请求频率过高，引发 B 站限流了，我正在尝试休眠 {SLEEP_TIME_WHEN_LIMITED}s... （当前重试次数: {retry_time}）")
+            await asyncio.sleep(SLEEP_TIME_WHEN_LIMITED)
+            return await get_html(url, params, headers, cookies, timeout, client, retry_time + 1)
         r.raise_for_status()  # 如果状态不是200，引发HTTPError异常
         return r.text
     except Exception as e:
         print_exc()
-        return "产生异常"
+        raise e
     finally:
         if client is None and m_client is not None:
             await m_client.aclose()
@@ -88,17 +110,19 @@ async def crawl_one_page_video(oid: int, page: int, pagination_str: str, client:
     video_replies = obj["data"]["replies"]
 
     for root_reply in video_replies:
+        saved_file_name =  f"data/video_{oid}/page_{page}/rpid_{root_reply['rpid']}_convs.json"
+        if SKIP_EXISTED_DATA and os.path.exists(saved_file_name):
+            print("--- rpid 为 {:12d} 的评论已经爬过，跳过爬取".format(root_reply["rpid"]))
+            continue
         comment_replies: Dict[str, Any] = await get_reply(oid, root_reply["rpid"], root_reply["rcount"])
         conversations = build_conv_from_replies(root_reply, comment_replies)
         if conversations:
-            save_obj(
-                conversations, f"data/video_{oid}/page_{page}/rpid_{root_reply['rpid']}_convs.json")
+            save_obj(conversations, saved_file_name)
             print("--- 保存 rpid 为 {:12d} 的评论并构建对话完毕，共 {:6d} 条".format(
                 root_reply["rpid"], len(conversations)))
         else:
-            print(
-                "--- rpid 为 {:12d} 的评论没有符合要求的对话，跳过保存".format(root_reply["rpid"]))
-        await asyncio.sleep(0.1)
+            print("--- rpid 为 {:12d} 的评论没有符合要求的对话，跳过保存".format(root_reply["rpid"]))
+        await asyncio.sleep(SLEEP_TIME_ONE_REPLY)
 
     print("爬取到的第 {} 页，第一条评论是 {}".format(
         page, video_replies[0]["content"]["message"]))
@@ -159,7 +183,7 @@ async def crawl_one_video(oid: int):
             if next_page is None:
                 print("- 视频 {} 的评论爬取完毕".format(oid))
                 break
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(SLEEP_TIME_ONE_PAGE)
             pagination = next_page
 
 
@@ -224,7 +248,7 @@ def build_conv_from_replies(root_reply: JSON_TYPE, replies: List[JSON_TYPE]) -> 
     for c in conv:
         # 过滤：
         # 1. 评论数小于5的对话
-        if len(c) < 5:
+        if len(c) < MIN_DIALOG_LENGTH:
             continue
         temp = []
         for item in c:
@@ -246,8 +270,6 @@ async def refresh_cookie_if_necessary():
         print("cookie 已过期，正在刷新")
         await credential.refresh()
         print("cookie 刷新成功")
-        # cookie = credential.get_cookies()
-        # COMMON_HEADERS["Cookie"] = "; ".join([f"{k}={v}" for k, v in cookie.items()])
     else:
         print("cookie 未过期，无需刷新")
 
@@ -255,7 +277,7 @@ async def refresh_cookie_if_necessary():
 async def main():
     await refresh_cookie_if_necessary()
     # oid 即为视频的 av 号，可以在某个视频的源码中找到
-    await crawl_one_video(960513817)
+    await crawl_one_video(VIDEO_OID)
 
 
 if __name__ == "__main__":
