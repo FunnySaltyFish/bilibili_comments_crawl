@@ -41,6 +41,58 @@
 
 这个数据格式是 Aquila 做微调需要的，具体参见 [它们的 Github 仓库](https://github.com/FlagAI-Open/FlagAI/tree/master/examples/Aquila/Aquila-chat/data)。更多数据样例，请移步文章最后的仓库源码查看。
 
+## 如何运行
+1. 环境
+- Python 3.7+ （自测环境为 Python 3.10.4）
+- 使用 `pip install -r requirements.txt` 安装相关依赖
+- 一个可用的 B 站账号
+
+2. .env
+由于 B 站限制，爬取相关内容需要登录，因此需要配置一下账号的 Cookie。  
+克隆此项目后，在根目录下创建 .env 文件，内容如下：
+```
+SESSDATA='xxx'
+BUVID3='xxxx'
+DEDE_USER_ID='xxx'
+BILI_JCT='xxx'
+AT_TIME_VALUE='xxx'
+```
+
+各项值的含义和获取方式请参考 https://nemo2011.github.io/bilibili-api/#/get-credential 。
+
+3. 按需修改参数
+项目的主要文件只有一个, `bilibili_comments_crawler.py`，您可以配置的参数有：
+```python
+# 同时最多运行多少个协程，可调，但不建议改太大，不要给 B 站造成负担
+ASYNC_POOL_MAX_SIZE = 16
+# 对话链的最短有效长度，超过此长度的对话才会被保存
+MIN_DIALOG_LENGTH = 5
+# oid 即为视频的 av 号，可以在某个视频的源码中找到（右键-查看源代码-搜索 oid）
+VIDEO_OID = 2
+# 爬取每一页评论（即视频下面）后的休眠时间，单位秒
+SLEEP_TIME_ONE_PAGE = 0.1
+# 爬取每一条评论后的休眠时间，单位秒
+SLEEP_TIME_ONE_REPLY = 0.1
+# 被 B 站限制访问时的休眠时间，单位秒
+SLEEP_TIME_WHEN_LIMITED = 30
+# 被 B 站限制访问时的最高重试次数，超过此次数则放弃
+MAX_RETRY_TIME_WHEN_LIMITED = 3
+# 当某条数据已经爬过时，是否跳过，而不是重新爬取（对于新视频，有可能评论会随时间更新；老视频一般无影响）
+SKIP_EXISTED_DATA = True
+``` 
+
+请按实际情况配置。
+
+另外，项目生成的 json 格式为 `Aquila` 微调所需格式，如果需要改，可以自行修改 `build_conv_from_replies` 函数。
+
+4. 跑起来
+```bash
+python bilibili_comments_crawler.py
+```
+
+下面是配套文章。
+
+---
 
 ## 前言
 前段时间，我的某个课程给我们提出了一个任务：自行构建数据集，微调 [Aquila-7B](https://model.baai.ac.cn/model-detail/100098) 大模型。上网搜了一圈，发现很多对话数据集是用的 GPT 系列的模型，而且数据集很多都是英文的，中文的数据集很少。作为 B 站用户，我突发奇想，想到了 B 站的视频评论区，这里的对话更加贴近生活，而且 B 站的视频评论区有很多热门视频，评论数也很多，能不能那它们来构建一个中文的对话数据集呢？

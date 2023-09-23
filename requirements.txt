@@ -1,0 +1,4 @@
+aiohttp
+bilibili_api_python
+httpx
+python-dotenv==1.0.0
