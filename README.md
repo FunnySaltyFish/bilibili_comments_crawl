@@ -39,6 +39,14 @@
 ]
 ```
 
+> 目前的算法会将符合条件（长度大于等于阈值）的所有对话分支都保留下来，比如，对于
+> ```
+>                /--F
+> A -> B -> C -> D -> E  
+>               \--G
+> ```
+> 那么它会形成三条链，分别是 ABCDE、ABCDF、ABCDG。这是特殊处理过的（`def build_conv_from_replies`）。如果你不需要特殊处理，想获得和 B 站评论区一致的对话，可参考 [#1 ](https://github.com/FunnySaltyFish/bilibili_comments_crawl/issues/1) 修改对应代码
+
 这个数据格式是 Aquila 做微调需要的，具体参见 [它们的 Github 仓库](https://github.com/FlagAI-Open/FlagAI/tree/master/examples/Aquila/Aquila-chat/data)。更多数据样例，请移步文章最后的仓库源码查看。
 
 ## 如何运行
