@@ -47,7 +47,7 @@
 > ```
 > 那么它会形成三条链，分别是 ABCDE、ABCDF、ABCDG。这是特殊处理过的（`def build_conv_from_replies`）。如果你不需要特殊处理，想获得和 B 站评论区一致的对话，可参考 [#1 ](https://github.com/FunnySaltyFish/bilibili_comments_crawl/issues/1) 修改对应代码
 
-这个数据格式是 Aquila 做微调需要的，具体参见 [它们的 Github 仓库](https://github.com/FlagAI-Open/FlagAI/tree/master/examples/Aquila/Aquila-chat/data)。更多数据样例，请移步文章最后的仓库源码查看。
+这个数据格式是 Aquila 做微调需要的，具体参见 [它们的 Github 仓库](https://github.com/FlagAI-Open/FlagAI/tree/master/examples/Aquila/Aquila-chat/data)。更多数据样例，见 [example_data](./example_data)
 
 ## 如何运行
 1. 环境
@@ -557,4 +557,4 @@ with open('test.json', 'w', encoding='utf-8') as f:
 
 本文只是简单示例，我没有验证过这个数据集的质量，也没有做过其他的处理，因此大家可以根据自己的需求来做一些剪枝和过滤，以提高最终获得数据集的质量。
 
-本文的代码已经上传到了 Github，欢迎大家 Star 和 Fork，如果有什么问题，欢迎提 Issue。
+欢迎大家 Star 和 Fork，如果有什么问题，欢迎提 Issue。
